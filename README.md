@@ -168,6 +168,19 @@ task id renders a not-found view with a way back.
 4. Accessibility and polish pass: focus management in dialogs, keyboard
    shortcuts, `aria-live` for optimistic updates and toasts.
 
+## Running tests
+
+```bash
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
+
+14 example tests (pytest + FastAPI `TestClient`, fully in-process — no ports or
+Docker required) covering auth and rotation-revocation, CRUD validation edges,
+the `/tasks/stats` route-order regression, pagination and filters, idempotent
+completion's activity logging, and the MCP auth gate.
+
 ## Repo notes
 
 - `NOTES.md` is the working log kept during the build — spec-gap analysis,
