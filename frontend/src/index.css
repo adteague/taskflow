@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Class-based dark mode: the `dark` class is applied to <html> (default). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+/*
+ * Carbon Arc brand palette.
+ * Accent: #ff5a00 (hsl(21 100% 50%)), hover partner #ff8a3d, darker #e65100.
+ * Dark is the default theme; light is available via the header toggle.
+ */
+:root {
+  color-scheme: light;
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(240 6% 10%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(240 6% 10%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(240 6% 10%);
+  /* Darkened orange: white text on it and orange-on-white both pass AA. */
+  --primary: hsl(21 100% 39%);
+  --primary-hover: hsl(21 100% 34%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(240 5% 96%);
+  --secondary-foreground: hsl(240 6% 10%);
+  --muted: hsl(240 5% 96%);
+  --muted-foreground: hsl(240 4% 40%);
+  --accent: hsl(21 100% 96%);
+  --accent-foreground: hsl(21 100% 34%);
+  --destructive: hsl(0 72% 45%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(20 6% 90%);
+  --input: hsl(20 6% 82%);
+  --ring: hsl(21 100% 45%);
+  --radius: 0.625rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: hsl(0 0% 0%);
+  --foreground: hsl(0 0% 98%);
+  --card: hsl(240 6% 10%);
+  --card-foreground: hsl(0 0% 98%);
+  --popover: hsl(240 6% 10%);
+  --popover-foreground: hsl(0 0% 98%);
+  /* #ff5a00 on black is 6.7:1; near-black text on #ff5a00 is 6.4:1. */
+  --primary: hsl(21 100% 50%);
+  --primary-hover: hsl(24 100% 62%);
+  --primary-foreground: hsl(0 0% 4%);
+  --secondary: hsl(240 5% 16%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --muted: hsl(240 5% 14%);
+  --muted-foreground: hsl(0 0% 66%);
+  --accent: hsl(240 5% 16%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 91% 71%);
+  --destructive-foreground: hsl(0 0% 9%);
+  /* Subtle structural dividers; interactive borders use --input at 30%. */
+  --border: hsl(0 0% 18%);
+  --input: hsl(0 0% 30%);
+  --ring: hsl(21 100% 50%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-background font-sans text-foreground;
+    font-feature-settings: "cv11";
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
