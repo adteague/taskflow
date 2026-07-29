@@ -175,6 +175,24 @@ integration re-verify.
 
 ## Log
 
+- **2026-07-29** — **STATUS WORKFLOW + KANBAN (final feature phase).** With
+  ~15 min left on the exam clock the PM requested: four statuses
+  (backlog → todo → in_progress → complete, "pending" renamed to
+  in progress, new tasks land in todo), clickable badge-dropdown for status
+  changes, status filter dropdown replacing the segmented control, and a
+  Kanban board. Key ruling: `status` is the source of truth while the spec's
+  required `completed: boolean`, stats trio, and PUT /complete stay intact
+  (completed derived = status=="complete") — extend the contract, never break
+  it. Split for speed: backend + tests inline, frontend via a
+  context-inheriting fork (vendored dropdown-menu, /board route with
+  optimistic column moves). Seed redistributed 3/3/3/5 across columns; MCP
+  update_task/list_tasks made status-aware. 15/15 tests, 9/9 live checks,
+  pushed as 016827a.
+- **2026-07-29** — Docs polish (PM-requested): status workflow documented in
+  all three MCP-doc homes — docs/MCP.md (intro + tool catalog), the
+  docs://usage resource, and the connect-time instructions text. Tool schemas
+  were already current via self-description; the prose now matches.
+
 - **2026-07-29** — Reviewed spec. Found 10 gaps/ambiguities (above), the big
   three: no update endpoint despite edit requirements, toggle-vs-complete
   semantics, pagination unspecified on the backend. Proposed architecture and

@@ -26,12 +26,15 @@ from app.models import TaskCreate, TaskUpdate
 from app.security import verify_token
 
 INSTRUCTIONS = (
-    "This server manages the user's task list (a simple task manager: tasks "
-    "have an integer id, a title, a completed flag, and timestamps). Suggested "
-    "workflow: call get_stats first for a quick overview, and list_tasks to "
-    "see current tasks (newest first) before mutating anything. All task ids "
-    "are integers taken from list_tasks/create_task results — never guess "
-    "them. Read the docs://usage resource for fuller documentation."
+    "This server manages the user's task list. Tasks have an integer id, a "
+    "title, a workflow status (backlog -> todo -> in_progress -> complete; "
+    "new tasks start in todo), a derived completed flag (status == "
+    "'complete'), and timestamps. Suggested workflow: call get_stats first "
+    "for a quick overview, and list_tasks to see current tasks (newest first) "
+    "before mutating anything; move tasks through the workflow with "
+    "update_task's status parameter. All task ids are integers taken from "
+    "list_tasks/create_task results — never guess them. Read the docs://usage "
+    "resource for fuller documentation."
 )
 
 USAGE_DOC = """\
@@ -43,28 +46,38 @@ them immediately.
 
 ## Data model
 
-A task: `{"id": 3, "title": "...", "completed": false,
+A task: `{"id": 3, "title": "...", "status": "todo", "completed": false,
 "createdAt": "<ISO 8601>", "updatedAt": "<ISO 8601>"}`.
 Ids are integers, assigned by the server. All field names are camelCase.
 
+Statuses form a workflow, in order: `backlog` -> `todo` -> `in_progress` ->
+`complete`. New tasks start in `todo`. `completed` is derived — it is true
+exactly when `status` is `complete`; prefer reading and writing `status`.
+
 ## Recommended workflow
 
-1. `get_stats` — cheap overview (total / completed / pending counts).
+1. `get_stats` — cheap overview (total / completed / pending plus per-status
+   counts: backlog / todo / inProgress).
 2. `list_tasks` — page through tasks (newest first). Use `search` and
    `status` to narrow results instead of paging through everything.
-3. Mutate with `create_task`, `update_task`, `complete_task`, `delete_task`,
-   using ids taken from `list_tasks` results — never guess ids.
+3. Mutate with `create_task`, `update_task` (rename and/or set `status`),
+   `complete_task`, `delete_task`, using ids taken from `list_tasks`
+   results — never guess ids.
 4. `get_activity` — per-task audit trail when you need history ("when was
-   this renamed/completed?").
+   this renamed/completed?"). Status entries record old/new status names.
 
 ## Rules and edge cases
 
 - Titles: 1–200 characters after trimming whitespace; longer or blank titles
   are rejected with a validation error.
-- `update_task` requires at least one of `title` / `completed`.
+- `update_task` requires at least one of `title` / `status` / `completed`.
+  `status` takes precedence over `completed` when both are sent; the legacy
+  `completed` boolean maps true -> `complete`, false -> `todo`.
 - `complete_task` is idempotent — completing a completed task is a no-op.
 - `delete_task` is permanent and also deletes the task's activity history.
 - Tools that reference a missing id return a "Task not found" tool error.
+- `list_tasks` `status` filter accepts a specific status name, or `active`
+  (anything not complete), `completed` (complete only), `all` (default).
 - `list_tasks` pagination: `total` is the count after filtering;
   `totalPages` is at least 1 even when there are no results.
 """

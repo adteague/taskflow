@@ -8,6 +8,11 @@ is immediately visible to the user, and vice versa. All tools are thin wrappers
 over the same handlers the REST routes use, so validation and response shapes
 (camelCase JSON) are identical.
 
+Tasks move through a four-status workflow — `backlog` → `todo` →
+`in_progress` → `complete` — and new tasks start in `todo`. The `completed`
+boolean is derived (true exactly when `status` is `complete`); agents should
+prefer reading and writing `status`.
+
 > **In-app connection page:** log in to the web UI and open **MCP** in the
 > header nav (http://localhost:3000/mcp). It shows the server URL, your
 > current session token with copy buttons, a ready-to-paste connect command,
@@ -46,13 +51,13 @@ handshake state needs to survive restarts.
 
 | Tool | When to use | Returns |
 |---|---|---|
-| `list_tasks(page, limit, search, status)` | See the user's tasks; find ids before mutating. Filters: `search` (title substring), `status` (`all`/`active`/`completed`). | One page of tasks, newest first, plus `total`, `page`, `limit`, `totalPages`. |
-| `create_task(title)` | Add a new task (starts not completed). | The created task with its server-assigned integer id. |
-| `update_task(task_id, title?, completed?)` | Rename a task and/or set its completed state (at least one field required). | The updated task. |
-| `complete_task(task_id)` | Mark a task done. Idempotent. | The task in its completed state. |
+| `list_tasks(page, limit, search, status)` | See the user's tasks; find ids before mutating. Filters: `search` (title substring), `status` (a specific status — `backlog`/`todo`/`in_progress`/`complete` — or `active` = not complete, `completed`, `all`). | One page of tasks, newest first, plus `total`, `page`, `limit`, `totalPages`. |
+| `create_task(title)` | Add a new task (starts in `todo`). | The created task with its server-assigned integer id. |
+| `update_task(task_id, title?, status?, completed?)` | Rename a task and/or move it through the workflow (at least one field required). Prefer `status`; the legacy `completed` boolean maps true → `complete`, false → `todo`, and `status` wins when both are sent. | The updated task. |
+| `complete_task(task_id)` | Mark a task done (status `complete`). Idempotent. | The task in its completed state. |
 | `delete_task(task_id)` | Permanently remove a task (and its activity history). | `{"deleted": true, "taskId": <id>}`. |
-| `get_stats()` | Quick overview; good first call. | `{"total", "completed", "pending"}` counts. |
-| `get_activity(task_id)` | Audit-trail questions ("when was this renamed/completed?"). | Activity entries, newest first, with `action`, `oldValue`, `newValue`, `timestamp`. |
+| `get_stats()` | Quick overview; good first call. | Spec'd `{"total", "completed", "pending"}` plus per-status counts (`backlog`, `todo`, `inProgress`). |
+| `get_activity(task_id)` | Audit-trail questions ("when was this renamed or moved?"). | Activity entries, newest first, with `action`, `oldValue`, `newValue` (status names for `status_changed`), `timestamp`. |
 
 Missing task ids and invalid input (e.g. an empty title) come back as tool
 errors with a clear message, not protocol failures.
