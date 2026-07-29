@@ -12,9 +12,14 @@ export interface LoginResponse {
   }
 }
 
+/** Workflow states, in board order. `completed` is derived (= "complete"). */
+export type TaskStatus = "backlog" | "todo" | "in_progress" | "complete"
+
 export interface Task {
   id: number
   title: string
+  status: TaskStatus
+  /** Derived on the server: status === "complete". Kept for spec compliance. */
   completed: boolean
   /** ISO-8601 UTC timestamp */
   createdAt: string
@@ -30,8 +35,12 @@ export interface TaskPage {
   totalPages: number
 }
 
-/** Server-side status filter for GET /tasks (applied before pagination). */
-export type TaskStatusFilter = "all" | "active" | "completed"
+/**
+ * Server-side status filter for GET /tasks (applied before pagination).
+ * "active" = any non-complete status; "completed" targets the complete
+ * status (legacy naming preserved on the wire).
+ */
+export type TaskStatusFilter = "all" | "active" | "completed" | TaskStatus
 
 export interface TaskListParams {
   page: number
@@ -44,7 +53,11 @@ export interface TaskListParams {
 export interface TaskStats {
   total: number
   completed: number
+  /** Any non-complete status (kept for spec compliance). */
   pending: number
+  backlog: number
+  todo: number
+  inProgress: number
 }
 
 export interface CreateTaskRequest {
@@ -54,6 +67,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string
   completed?: boolean
+  status?: TaskStatus
 }
 
 export type ActivityAction = "created" | "title_changed" | "status_changed"

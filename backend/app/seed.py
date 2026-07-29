@@ -17,8 +17,9 @@ from datetime import datetime, timedelta, timezone
 from app.store import TaskStore, store
 
 # Each edit is (kind, value, hours_after_create):
-#   ("title", new_title, h)   -> update_task(title=...)
-#   ("status", completed, h)  -> update_task(completed=...)
+#   ("title", new_title, h)    -> update_task(title=...)
+#   ("status", status_name, h) -> update_task(status=...) — one of
+#                                 backlog | todo | in_progress | complete
 # Edits are applied (and therefore logged) in order, so hours_after_create
 # must be increasing within a spec and smaller than created_days_ago * 24.
 Edit = tuple[str, object, float]
@@ -39,24 +40,26 @@ _SEED_SPECS: tuple[_SeedSpec, ...] = (
         created_days_ago=14.0,
         edits=(
             ("title", "Prepare Carbon Arc platform demo for retail prospect", 5),
-            ("status", True, 52),
+            ("status", "in_progress", 24),
+            ("status", "complete", 52),
         ),
     ),
     _SeedSpec(
         title="Draft insights report: CPG purchase trends",
         created_days_ago=13.2,
-        edits=(("status", True, 96),),
+        edits=(("status", "complete", 96),),
     ),
     _SeedSpec(
         title="Set up sandbox workspace for pilot client onboarding",
         created_days_ago=12.4,
-        edits=(("status", True, 30),),
+        edits=(("status", "complete", 30),),
     ),
     _SeedSpec(
         title="Follow up with pilot client",
         created_days_ago=11.1,
         edits=(
             ("title", "Follow up on API integration questions from pilot client", 26),
+            ("status", "in_progress", 40),
         ),
     ),
     _SeedSpec(
@@ -64,30 +67,32 @@ _SEED_SPECS: tuple[_SeedSpec, ...] = (
         created_days_ago=10.3,
         edits=(
             ("title", "Build sample notebook for hedge fund data eval", 8),
-            ("status", True, 70),
+            ("status", "complete", 70),
         ),
     ),
     _SeedSpec(
         title="Review data dictionary updates for consumer transactions feed",
         created_days_ago=9.2,
+        edits=(("status", "backlog", 4),),
     ),
     _SeedSpec(
         title="QA foot-traffic dataset refresh before client delivery",
         created_days_ago=8.0,
-        edits=(("status", True, 20),),
+        edits=(("status", "complete", 20),),
     ),
     _SeedSpec(
-        # Completed, then reopened after client feedback.
+        # Completed, then reopened to todo after client feedback.
         title="Write integration guide for Snowflake data share",
         created_days_ago=7.1,
         edits=(
-            ("status", True, 50),
-            ("status", False, 96),
+            ("status", "complete", 50),
+            ("status", "todo", 96),
         ),
     ),
     _SeedSpec(
         title="Scope custom entity-matching request from insurance prospect",
         created_days_ago=6.0,
+        edits=(("status", "backlog", 6),),
     ),
     _SeedSpec(
         title=(
@@ -95,12 +100,14 @@ _SEED_SPECS: tuple[_SeedSpec, ...] = (
             "quarterly business review"
         ),
         created_days_ago=5.2,
+        edits=(("status", "in_progress", 20),),
     ),
     _SeedSpec(
         title="Look into webhook failures",
         created_days_ago=4.1,
         edits=(
             ("title", "Triage webhook delivery failures reported by pilot client", 6),
+            ("status", "in_progress", 12),
         ),
     ),
     _SeedSpec(
@@ -110,6 +117,7 @@ _SEED_SPECS: tuple[_SeedSpec, ...] = (
     _SeedSpec(
         title="Update demo environment with latest alt-data connectors",
         created_days_ago=1.4,
+        edits=(("status", "backlog", 3),),
     ),
     _SeedSpec(
         title="Prep talking points for hedge fund eval kickoff call",
@@ -154,7 +162,7 @@ def seed_if_enabled(target: TaskStore = store) -> None:
     """Populate the store with demo data unless disabled or already seeded."""
     if not _seed_enabled():
         return
-    if target.stats()[0] > 0:
+    if target.stats()["total"] > 0:
         # Idempotence guard: never double-seed a store that already has tasks.
         return
 
@@ -167,6 +175,6 @@ def seed_if_enabled(target: TaskStore = store) -> None:
             if kind == "title":
                 target.update_task(record.id, title=value)
             else:  # "status"
-                target.update_task(record.id, completed=bool(value))
+                target.update_task(record.id, status=str(value))
             edit_times.append(created_at + timedelta(hours=hours_after))
         _backdate(target, record.id, created_at, edit_times)

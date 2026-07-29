@@ -15,7 +15,7 @@ import type { ActivityEntry } from "@/api/types"
 import { DeleteTaskDialog } from "@/components/delete-task-dialog"
 import { EditTaskDialog } from "@/components/edit-task-dialog"
 import { ErrorState } from "@/components/error-state"
-import { StatusBadge } from "@/components/status-badge"
+import { StatusBadgeSelect } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -31,6 +31,7 @@ import {
   useToggleTaskMutation,
 } from "@/hooks/use-tasks"
 import { formatDateTime } from "@/lib/format"
+import { statusValueLabel } from "@/lib/task-status"
 
 export function TaskDetailPage() {
   const params = useParams<{ id: string }>()
@@ -100,7 +101,7 @@ function TaskDetail({ id }: { id: number }) {
             >
               {task.title}
             </CardTitle>
-            <StatusBadge completed={task.completed} />
+            <StatusBadgeSelect task={task} />
           </div>
           <p className="text-sm text-muted-foreground">
             Created {formatDateTime(task.createdAt)}
@@ -116,12 +117,12 @@ function TaskDetail({ id }: { id: number }) {
             {task.completed ? (
               <>
                 <Circle aria-hidden="true" />
-                Mark as pending
+                Reopen as To do
               </>
             ) : (
               <>
                 <CheckCircle2 aria-hidden="true" />
-                Mark as completed
+                Mark as complete
               </>
             )}
           </Button>
@@ -234,12 +235,6 @@ function ActivityIcon({ action }: { action: ActivityEntry["action"] }) {
   }
 }
 
-function statusLabel(value: string | null): string {
-  if (value === "completed") return "Completed"
-  if (value === "pending") return "Pending"
-  return value ?? "unknown"
-}
-
 function ActivityText({ entry }: { entry: ActivityEntry }) {
   switch (entry.action) {
     case "created":
@@ -256,8 +251,9 @@ function ActivityText({ entry }: { entry: ActivityEntry }) {
       return (
         <p className="text-sm">
           Status changed from{" "}
-          <span className="font-medium">{statusLabel(entry.oldValue)}</span> to{" "}
-          <span className="font-medium">{statusLabel(entry.newValue)}</span>
+          <span className="font-medium">{statusValueLabel(entry.oldValue)}</span>{" "}
+          to{" "}
+          <span className="font-medium">{statusValueLabel(entry.newValue)}</span>
         </p>
       )
     default:

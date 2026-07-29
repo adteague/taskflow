@@ -143,11 +143,14 @@ def list_tasks(
         ),
     ] = None,
     status: Annotated[
-        Literal["all", "active", "completed"],
+        Literal[
+            "all", "active", "completed", "backlog", "todo", "in_progress", "complete"
+        ],
         Field(
             description=(
-                "Filter by completion state: 'active' = not completed, "
-                "'completed' = completed, 'all' = no filter (default)."
+                "Filter by workflow status (backlog -> todo -> in_progress -> "
+                "complete). Also: 'active' = anything not complete, "
+                "'completed' = complete, 'all' = no filter (default)."
             )
         ),
     ] = "all",
@@ -162,9 +165,9 @@ def list_tasks(
 
 @mcp.tool(
     description=(
-        "Call this to add a new task to the user's list. The task starts as "
-        "not completed. Returns the created task, including its server-assigned "
-        "integer id."
+        "Call this to add a new task to the user's list. New tasks start in "
+        "the 'todo' status (not completed). Returns the created task, "
+        "including its server-assigned integer id."
     )
 )
 def create_task(
@@ -179,10 +182,11 @@ def create_task(
 
 @mcp.tool(
     description=(
-        "Call this to rename a task and/or set its completed state. Provide at "
-        "least one of title/completed; omitted fields are left unchanged. "
-        "Returns the updated task. Fails with a tool error if the task id does "
-        "not exist."
+        "Call this to rename a task and/or move it through the workflow "
+        "(backlog -> todo -> in_progress -> complete). Provide at least one "
+        "of title/status/completed; omitted fields are left unchanged. Prefer "
+        "'status' over the legacy 'completed' boolean. Returns the updated "
+        "task. Fails with a tool error if the task id does not exist."
     )
 )
 def update_task(
@@ -196,17 +200,26 @@ def update_task(
             )
         ),
     ] = None,
+    status: Annotated[
+        Optional[Literal["backlog", "todo", "in_progress", "complete"]],
+        Field(
+            description=(
+                "New workflow status. Omit to keep the current status. Takes "
+                "precedence over 'completed' when both are sent."
+            )
+        ),
+    ] = None,
     completed: Annotated[
         Optional[bool],
         Field(
             description=(
-                "New completed state: true = completed, false = active. Omit "
-                "to keep the current state."
+                "Legacy completed flag: true maps to status 'complete', false "
+                "to 'todo'. Prefer 'status'. Omit to keep the current state."
             )
         ),
     ] = None,
 ) -> dict[str, Any]:
-    body = _validated(TaskUpdate, title=title, completed=completed)
+    body = _validated(TaskUpdate, title=title, completed=completed, status=status)
     return _dump(_call_route(routes_tasks.patch_task, task_id, body))
 
 

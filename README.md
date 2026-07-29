@@ -43,6 +43,11 @@ Router navigation, auth-validated API requests, Dockerfiles + compose.
 - **Token rotation with real revocation** — tokens carry a version claim;
   `POST /auth/rotate` (two-step confirmation in the UI) mints a fresh token and
   immediately invalidates every previously issued one.
+- **Status workflow + Kanban board** — tasks move through
+  `backlog → todo → in_progress → complete` (new tasks land in `todo`), with a
+  clickable status badge, a status filter dropdown, and a four-column board
+  view. The spec's `completed: boolean` and stats shape are preserved —
+  `completed` is derived from `status`, so the required contract still holds.
 - **Server-side search & status filtering** applied before pagination, exposed
   in both REST and MCP, with debounced, URL-persisted controls in the UI.
 - **Optimistic UI** — toggle/edit/delete update instantly with snapshot
@@ -82,13 +87,13 @@ router.
 |---|---|---|
 | POST | `/auth/login` | → `{token, user}`; 401 on bad credentials |
 | POST | `/auth/rotate` | Mint fresh token, revoke all prior tokens *(added)* |
-| GET | `/tasks?page&limit&search&status` | Paginated envelope, newest first |
-| POST | `/tasks` | 201; title validated (1–200 chars, trimmed) |
+| GET | `/tasks?page&limit&search&status` | Paginated envelope, newest first; `status` accepts `all`/`active`/`completed` or a specific status |
+| POST | `/tasks` | 201; title validated (1–200 chars, trimmed); starts in `todo` |
 | GET | `/tasks/{id}` | 404 when missing |
-| PATCH | `/tasks/{id}` | Edit title and/or completed *(added — see assumptions)* |
-| PUT | `/tasks/{id}/complete` | Idempotent mark-complete |
+| PATCH | `/tasks/{id}` | Edit `title`, `status`, and/or legacy `completed` *(added — see assumptions)* |
+| PUT | `/tasks/{id}/complete` | Idempotent mark-complete (→ status `complete`) |
 | DELETE | `/tasks/{id}` | 204 |
-| GET | `/tasks/stats` | `{total, completed, pending}` |
+| GET | `/tasks/stats` | Spec'd `{total, completed, pending}` + per-status counts |
 | GET | `/tasks/{id}/activity` | Newest-first entries with old/new values |
 | GET | `/mcp-info` | Live MCP tool catalog *(added)* |
 | GET | `/health` | Unauthenticated; Docker healthcheck *(added)* |

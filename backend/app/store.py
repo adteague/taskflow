@@ -11,11 +11,17 @@ from datetime import datetime, timezone
 from typing import Optional
 
 
+# Workflow order: backlog -> todo -> in_progress -> complete.
+STATUSES = ("backlog", "todo", "in_progress", "complete")
+DEFAULT_STATUS = "todo"
+
+
 @dataclass
 class TaskRecord:
     id: int
     title: str
-    completed: bool
+    completed: bool  # derived: always (status == "complete"); kept for the spec'd field
+    status: str
     created_at: datetime
     updated_at: datetime
 
@@ -71,6 +77,7 @@ class TaskStore:
                 id=self._next_task_id,
                 title=title,
                 completed=False,
+                status=DEFAULT_STATUS,
                 created_at=now,
                 updated_at=now,
             )
@@ -100,9 +107,11 @@ class TaskStore:
                 needle = search.lower()
                 ordered = [t for t in ordered if needle in t.title.lower()]
             if status == "active":
-                ordered = [t for t in ordered if not t.completed]
+                ordered = [t for t in ordered if t.status != "complete"]
             elif status == "completed":
-                ordered = [t for t in ordered if t.completed]
+                ordered = [t for t in ordered if t.status == "complete"]
+            elif status in STATUSES:
+                ordered = [t for t in ordered if t.status == status]
             total = len(ordered)
             start = (page - 1) * limit
             items = [replace(t) for t in ordered[start : start + limit]]
@@ -119,9 +128,12 @@ class TaskStore:
         *,
         title: Optional[str] = None,
         completed: Optional[bool] = None,
+        status: Optional[str] = None,
     ) -> Optional[TaskRecord]:
         """Apply a partial update. Logs activity only for real changes.
 
+        `status` is the source of truth; a bare `completed` bool (the spec's
+        field) maps to "complete" / "todo". When both are sent, status wins.
         Returns the (possibly unchanged) record, or None if the task is missing.
         """
         with self._lock:
@@ -133,14 +145,13 @@ class TaskStore:
                 self._log(task_id, "title_changed", record.title, title)
                 record.title = title
                 changed = True
-            if completed is not None and completed != record.completed:
-                self._log(
-                    task_id,
-                    "status_changed",
-                    "completed" if record.completed else "pending",
-                    "completed" if completed else "pending",
-                )
-                record.completed = completed
+            new_status = status
+            if new_status is None and completed is not None:
+                new_status = "complete" if completed else DEFAULT_STATUS
+            if new_status is not None and new_status != record.status:
+                self._log(task_id, "status_changed", record.status, new_status)
+                record.status = new_status
+                record.completed = new_status == "complete"
                 changed = True
             if changed:
                 record.updated_at = _now()
@@ -161,12 +172,13 @@ class TaskStore:
                 return None
             return [replace(e) for e in reversed(self._activity[task_id])]
 
-    def stats(self) -> tuple[int, int]:
-        """Return (total, completed)."""
+    def stats(self) -> dict[str, int]:
+        """Return {"total": n} plus a count per status name."""
         with self._lock:
-            total = len(self._tasks)
-            completed = sum(1 for t in self._tasks.values() if t.completed)
-            return total, completed
+            counts = {name: 0 for name in STATUSES}
+            for task in self._tasks.values():
+                counts[task.status] += 1
+            return {"total": len(self._tasks), **counts}
 
 
 # Module-level singleton shared by the routers.

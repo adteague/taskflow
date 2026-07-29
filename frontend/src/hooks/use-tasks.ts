@@ -8,7 +8,8 @@ import {
 import { toast } from "sonner"
 import { getErrorMessage } from "@/api/client"
 import * as api from "@/api/endpoints"
-import type { Task, TaskPage, TaskStatusFilter } from "@/api/types"
+import type { Task, TaskPage, TaskStatus, TaskStatusFilter } from "@/api/types"
+import { STATUS_LABELS } from "@/lib/task-status"
 
 export const PAGE_SIZE = 10
 
@@ -91,25 +92,34 @@ function patchTaskInLists(
   )
 }
 
+/** Whether a task with `status` belongs in a list filtered by `filter`. */
+function matchesFilter(filter: TaskStatusFilter, status: TaskStatus): boolean {
+  if (filter === "all") return true
+  if (filter === "active") return status !== "complete"
+  if (filter === "completed") return status === "complete"
+  return filter === status
+}
+
 /**
- * Flips a task's completed flag in every cached list page. Pages whose
- * status filter no longer matches drop the row instantly (matching what the
- * server will return); the settled invalidation reconciles totals/positions.
+ * Moves a task to `status` in every cached list page. Pages whose status
+ * filter no longer matches drop the row instantly (matching what the server
+ * will return); the settled invalidation reconciles totals/positions. The
+ * board's cache (key ["tasks", "board"]) has no filter params and is treated
+ * as "all", so its card simply changes column.
  */
-function applyCompletedToLists(
+function applyStatusToLists(
   queryClient: QueryClient,
   id: number,
-  completed: boolean,
+  status: TaskStatus,
 ): void {
+  const patch = { status, completed: status === "complete" }
   const entries = queryClient.getQueriesData<TaskPage>({ queryKey: ["tasks"] })
   for (const [key, page] of entries) {
     if (!page) continue
     const params = key[1] as { status?: TaskStatusFilter } | undefined
-    const status = params?.status ?? "all"
-    const excluded =
-      (status === "active" && completed) ||
-      (status === "completed" && !completed)
-    if (excluded) {
+    const filter =
+      (typeof params === "object" ? params?.status : undefined) ?? "all"
+    if (!matchesFilter(filter, status)) {
       const items = page.items.filter((task) => task.id !== id)
       if (items.length !== page.items.length) {
         queryClient.setQueryData<TaskPage>(key, {
@@ -122,7 +132,7 @@ function applyCompletedToLists(
       queryClient.setQueryData<TaskPage>(key, {
         ...page,
         items: page.items.map((task) =>
-          task.id === id ? { ...task, completed } : task,
+          task.id === id ? { ...task, ...patch } : task,
         ),
       })
     }
@@ -166,36 +176,42 @@ export function useCreateTaskMutation() {
   })
 }
 
-/**
- * Toggle semantics per contract: not completed -> PUT /tasks/:id/complete;
- * completed -> PATCH {"completed": false}. Optimistic: flips the task in all
- * cached list pages and the detail cache, rolls back on error.
- */
-export function useToggleTaskMutation() {
+interface MoveStatusVars {
+  task: Task
+  status: TaskStatus
+}
+
+interface MoveStatusContext {
+  previousLists: ListSnapshot
+  previousTask: Task | undefined
+}
+
+/** Shared optimistic move-to-status plumbing for toggle + status select. */
+function useMoveStatusMutation(options: {
+  mutationFn: (vars: MoveStatusVars) => Promise<Task>
+  successToast: (updated: Task) => string
+}) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (task: Task) =>
-      task.completed
-        ? api.updateTask(task.id, { completed: false })
-        : api.completeTask(task.id),
-    onMutate: async (task) => {
+  return useMutation<Task, Error, MoveStatusVars, MoveStatusContext>({
+    mutationFn: options.mutationFn,
+    onMutate: async ({ task, status }) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: ["tasks"] }),
         queryClient.cancelQueries({ queryKey: ["task", task.id] }),
       ])
       const previousLists = snapshotLists(queryClient)
       const previousTask = queryClient.getQueryData<Task>(["task", task.id])
-      const completed = !task.completed
-      applyCompletedToLists(queryClient, task.id, completed)
+      applyStatusToLists(queryClient, task.id, status)
       if (previousTask) {
         queryClient.setQueryData<Task>(["task", task.id], {
           ...previousTask,
-          completed,
+          status,
+          completed: status === "complete",
         })
       }
       return { previousLists, previousTask }
     },
-    onError: (error, task, context) => {
+    onError: (error, { task }, context) => {
       if (context) {
         restoreLists(queryClient, context.previousLists)
         if (context.previousTask) {
@@ -205,16 +221,46 @@ export function useToggleTaskMutation() {
       errorToast("Couldn't update task — reverted", error)
     },
     onSuccess: (updated) => {
-      toast.success(
-        updated.completed ? "Marked as completed" : "Marked as pending",
-      )
+      toast.success(options.successToast(updated))
     },
-    onSettled: (_data, _error, task) => {
+    onSettled: (_data, _error, { task }) => {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] })
       void queryClient.invalidateQueries({ queryKey: ["stats"] })
       void queryClient.invalidateQueries({ queryKey: ["task", task.id] })
       void queryClient.invalidateQueries({ queryKey: ["activity", task.id] })
     },
+  })
+}
+
+/**
+ * Complete/reopen toggle: not complete -> PUT /tasks/:id/complete (spec'd
+ * endpoint); complete -> PATCH {"status": "todo"} (reopen). Optimistic across
+ * all cached lists (including the board) and the detail cache.
+ */
+export function useToggleTaskMutation() {
+  const inner = useMoveStatusMutation({
+    mutationFn: ({ task }) =>
+      task.completed
+        ? api.updateTask(task.id, { status: "todo" })
+        : api.completeTask(task.id),
+    successToast: (updated) =>
+      updated.completed ? "Marked as complete" : "Moved to To do",
+  })
+  return {
+    ...inner,
+    mutate: (task: Task) =>
+      inner.mutate({
+        task,
+        status: task.completed ? "todo" : "complete",
+      }),
+  }
+}
+
+/** Direct status move from the clickable badge dropdown. */
+export function useSetStatusMutation() {
+  return useMoveStatusMutation({
+    mutationFn: ({ task, status }) => api.updateTask(task.id, { status }),
+    successToast: (updated) => `Moved to ${STATUS_LABELS[updated.status]}`,
   })
 }
 

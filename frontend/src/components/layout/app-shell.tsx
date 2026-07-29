@@ -34,6 +34,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLink to="/" end className={navLinkClass}>
                 Tasks
               </NavLink>
+              <NavLink to="/board" className={navLinkClass}>
+                Board
+              </NavLink>
               <NavLink to="/mcp" className={navLinkClass}>
                 MCP
               </NavLink>

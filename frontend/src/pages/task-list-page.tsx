@@ -7,11 +7,14 @@ import {
 } from "react"
 import { Link, useSearchParams } from "react-router"
 import {
+  Check,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Circle,
   ClipboardList,
+  ListFilter,
   ListTodo,
   Pencil,
   Plus,
@@ -24,9 +27,15 @@ import type { Task, TaskStatusFilter } from "@/api/types"
 import { DeleteTaskDialog } from "@/components/delete-task-dialog"
 import { EditTaskDialog } from "@/components/edit-task-dialog"
 import { ErrorState } from "@/components/error-state"
-import { StatusBadge } from "@/components/status-badge"
+import { StatusBadgeSelect } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -41,14 +50,32 @@ import { cn } from "@/lib/utils"
 const MAX_TITLE_LENGTH = 200
 const SEARCH_DEBOUNCE_MS = 300
 
-const STATUS_OPTIONS: Array<{ value: TaskStatusFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
+/**
+ * Filter dropdown options, in workflow order. "completed" is the wire value
+ * targeting the complete status (legacy naming preserved server-side).
+ */
+const FILTER_OPTIONS: Array<{ value: TaskStatusFilter; label: string }> = [
+  { value: "all", label: "All statuses" },
+  { value: "backlog", label: "Backlog" },
+  { value: "todo", label: "To do" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Complete" },
+]
+
+const VALID_FILTERS: TaskStatusFilter[] = [
+  "all",
+  "active",
+  "completed",
+  "backlog",
+  "todo",
+  "in_progress",
 ]
 
 function parseStatus(raw: string | null): TaskStatusFilter {
-  return raw === "active" || raw === "completed" ? raw : "all"
+  if (raw === "complete") return "completed"
+  return (VALID_FILTERS as string[]).includes(raw ?? "")
+    ? (raw as TaskStatusFilter)
+    : "all"
 }
 
 function parsePage(raw: string | null): number {
@@ -303,28 +330,34 @@ function TaskFilters({
           className="pl-8"
         />
       </div>
-      <div
-        role="group"
-        aria-label="Filter by status"
-        className="flex w-fit shrink-0 rounded-lg border border-input bg-card p-0.5"
-      >
-        {STATUS_OPTIONS.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={status === value}
-            onClick={() => onStatusChange(value)}
-            className={cn(
-              "cursor-pointer rounded-md px-3 py-1 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60",
-              status === value
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            aria-label="Filter by status"
           >
-            {label}
-          </button>
-        ))}
-      </div>
+            <ListFilter aria-hidden="true" />
+            {FILTER_OPTIONS.find((option) => option.value === status)?.label ??
+              "All statuses"}
+            <ChevronDown aria-hidden="true" className="opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {FILTER_OPTIONS.map(({ value, label }) => (
+            <DropdownMenuItem
+              key={value}
+              onSelect={() => onStatusChange(value)}
+            >
+              <span className="flex-1">{label}</span>
+              {status === value && (
+                <Check aria-hidden="true" className="text-primary" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
@@ -481,7 +514,7 @@ function TaskRow({ task }: { task: Task }) {
       >
         {task.title}
       </Link>
-      <StatusBadge completed={task.completed} />
+      <StatusBadgeSelect task={task} />
       <div className="flex shrink-0 gap-1">
         <Button
           variant="ghost"

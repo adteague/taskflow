@@ -9,10 +9,11 @@ def create_task(client, auth, title):
 
 def test_create_task_returns_camel_case_shape(client, auth):
     task = create_task(client, auth, "Write report")
-    assert set(task) == {"id", "title", "completed", "createdAt", "updatedAt"}
+    assert set(task) == {"id", "title", "completed", "status", "createdAt", "updatedAt"}
     assert task["id"] == 1
     assert task["title"] == "Write report"
     assert task["completed"] is False
+    assert task["status"] == "todo"  # new tasks land in todo
 
 
 def test_title_validation_bounds(client, auth):
@@ -57,7 +58,14 @@ def test_stats_route_not_shadowed_by_id_route(client, auth):
 
     response = client.get("/tasks/stats", headers=auth)
     assert response.status_code == 200
-    assert response.json() == {"total": 3, "completed": 1, "pending": 2}
+    assert response.json() == {
+        "total": 3,
+        "completed": 1,
+        "pending": 2,
+        "backlog": 0,
+        "todo": 2,
+        "inProgress": 0,
+    }
 
 
 def test_pagination_newest_first_and_total_pages(client, auth):
@@ -104,5 +112,29 @@ def test_complete_is_idempotent_with_single_activity_entry(client, auth):
     # Newest first: the status change, then creation — and completing twice
     # must not have logged a second status_changed entry.
     assert [entry["action"] for entry in entries] == ["status_changed", "created"]
-    assert entries[0]["oldValue"] == "pending"
-    assert entries[0]["newValue"] == "completed"
+    assert entries[0]["oldValue"] == "todo"
+    assert entries[0]["newValue"] == "complete"
+
+
+def test_status_workflow_transitions(client, auth):
+    task = create_task(client, auth, "Kanban candidate")
+
+    moved = client.patch(
+        f"/tasks/{task['id']}", json={"status": "in_progress"}, headers=auth
+    )
+    assert moved.status_code == 200
+    assert moved.json()["status"] == "in_progress"
+    assert moved.json()["completed"] is False
+
+    filtered = client.get("/tasks?status=in_progress", headers=auth).json()
+    assert [t["id"] for t in filtered["items"]] == [task["id"]]
+
+    # Legacy boolean still works and maps onto the status model.
+    done = client.patch(
+        f"/tasks/{task['id']}", json={"completed": True}, headers=auth
+    )
+    assert done.json()["status"] == "complete"
+    reopened = client.patch(
+        f"/tasks/{task['id']}", json={"completed": False}, headers=auth
+    )
+    assert reopened.json()["status"] == "todo"

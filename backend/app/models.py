@@ -47,10 +47,14 @@ def _validate_title(value: str) -> str:
     return value
 
 
+TaskStatus = Literal["backlog", "todo", "in_progress", "complete"]
+
+
 class Task(CamelModel):
     id: int
     title: str
     completed: bool
+    status: TaskStatus
     created_at: datetime
     updated_at: datetime
 
@@ -67,6 +71,7 @@ class TaskCreate(CamelModel):
 class TaskUpdate(CamelModel):
     title: Optional[str] = None
     completed: Optional[bool] = None
+    status: Optional[TaskStatus] = None
 
     @field_validator("title")
     @classmethod
@@ -77,8 +82,10 @@ class TaskUpdate(CamelModel):
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> "TaskUpdate":
-        if self.title is None and self.completed is None:
-            raise ValueError("at least one of 'title' or 'completed' is required")
+        if self.title is None and self.completed is None and self.status is None:
+            raise ValueError(
+                "at least one of 'title', 'completed', or 'status' is required"
+            )
         return self
 
 
@@ -91,9 +98,14 @@ class TaskListResponse(CamelModel):
 
 
 class TaskStats(CamelModel):
+    # The spec'd trio; "pending" = anything not complete.
     total: int
     completed: int
     pending: int
+    # Per-status breakdown (in_progress serializes as inProgress).
+    backlog: int
+    todo: int
+    in_progress: int
 
 
 class ActivityEntry(CamelModel):

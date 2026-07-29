@@ -32,7 +32,9 @@ def list_tasks(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
-    status: Literal["all", "active", "completed"] = Query("all"),
+    status: Literal[
+        "all", "active", "completed", "backlog", "todo", "in_progress", "complete"
+    ] = Query("all"),
 ) -> TaskListResponse:
     # Filters are applied inside the store before pagination; total reflects
     # the filtered count. Invalid `status` values 422 via the Literal type.
@@ -56,8 +58,16 @@ def create_task(body: TaskCreate) -> Task:
 # route and fail to parse as an int.
 @router.get("/stats", response_model=TaskStats)
 def get_stats() -> TaskStats:
-    total, completed = store.stats()
-    return TaskStats(total=total, completed=completed, pending=total - completed)
+    counts = store.stats()
+    completed = counts["complete"]
+    return TaskStats(
+        total=counts["total"],
+        completed=completed,
+        pending=counts["total"] - completed,
+        backlog=counts["backlog"],
+        todo=counts["todo"],
+        in_progress=counts["in_progress"],
+    )
 
 
 @router.get("/{task_id}", response_model=Task)
@@ -70,7 +80,9 @@ def get_task(task_id: int) -> Task:
 
 @router.patch("/{task_id}", response_model=Task)
 def patch_task(task_id: int, body: TaskUpdate) -> Task:
-    record = store.update_task(task_id, title=body.title, completed=body.completed)
+    record = store.update_task(
+        task_id, title=body.title, completed=body.completed, status=body.status
+    )
     if record is None:
         raise _not_found()
     return Task.model_validate(record)
@@ -79,7 +91,7 @@ def patch_task(task_id: int, body: TaskUpdate) -> Task:
 @router.put("/{task_id}/complete", response_model=Task)
 def complete_task(task_id: int) -> Task:
     # Idempotent: the store only logs status_changed on a real transition.
-    record = store.update_task(task_id, completed=True)
+    record = store.update_task(task_id, status="complete")
     if record is None:
         raise _not_found()
     return Task.model_validate(record)
